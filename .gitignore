@@ -35,3 +35,13 @@ publish/
 # Local runtime/config files
 artifacts/
 KSOEModBus/ModbusSetting.ini
+
+# Track shared Excel mapping files under the built app output
+!KSOEModBus/bin/
+KSOEModBus/bin/*
+!KSOEModBus/bin/Debug/
+KSOEModBus/bin/Debug/*
+!KSOEModBus/bin/Debug/net8.0-windows/
+KSOEModBus/bin/Debug/net8.0-windows/*
+!KSOEModBus/bin/Debug/net8.0-windows/*.xls
+!KSOEModBus/bin/Debug/net8.0-windows/*.xlsx
