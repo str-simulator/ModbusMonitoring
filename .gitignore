@@ -31,3 +31,7 @@ Desktop.ini
 
 # Optional publish artifacts
 publish/
+
+# Local runtime/config files
+artifacts/
+KSOEModBus/ModbusSetting.ini

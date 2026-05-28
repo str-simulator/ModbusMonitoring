@@ -38,6 +38,7 @@ public sealed class MainViewModel : ObservableObject
         StartCommand = new RelayCommand(() => _ = StartAsync(), () => !IsRunning);
         StopCommand = new RelayCommand(() => _ = StopAsync(), () => IsRunning);
         ReloadExcelCommand = new RelayCommand(LoadExcel);
+        ClearLogCommand = new RelayCommand(ClearLogs);
         KsoeReadTestCommand = new RelayCommand(ApplyKsoeReadTestData);
 
         _dataStore.KsoeDataWritten += async _ =>
@@ -54,6 +55,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand StartCommand { get; }
     public RelayCommand StopCommand { get; }
     public RelayCommand ReloadExcelCommand { get; }
+    public RelayCommand ClearLogCommand { get; }
     public RelayCommand KsoeReadTestCommand { get; }
 
     public int ModbusPort
@@ -149,7 +151,7 @@ public sealed class MainViewModel : ObservableObject
         await _udpBridge.StartAsync(_settings);
         await _modbusServer.StartAsync(ModbusPort);
         StatusText = $"Listening on 0.0.0.0:{ModbusPort}";
-        ClientStatusText = "Single client mode enabled";
+        ClientStatusText = "Multi client mode enabled";
         IsRunning = true;
     }
 
@@ -206,11 +208,16 @@ public sealed class MainViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            Logs.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {message}");
+            Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
             while (Logs.Count > 300)
             {
-                Logs.RemoveAt(Logs.Count - 1);
+                Logs.RemoveAt(0);
             }
         });
+    }
+
+    private void ClearLogs()
+    {
+        Application.Current.Dispatcher.Invoke(() => Logs.Clear());
     }
 }

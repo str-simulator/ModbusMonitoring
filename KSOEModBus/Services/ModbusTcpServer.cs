@@ -10,8 +10,10 @@ public sealed class ModbusTcpServer : IAsyncDisposable
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoopTask;
-    private TcpClient? _activeClient;
+    private readonly List<TcpClient> _clients = [];
+    private readonly List<Task> _clientTasks = [];
     private readonly object _clientSync = new();
+    private bool _isStopping;
 
     public ModbusTcpServer(ModbusDataStore dataStore, Action<string> log)
     {
@@ -27,6 +29,7 @@ public sealed class ModbusTcpServer : IAsyncDisposable
         }
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _isStopping = false;
         _listener = new TcpListener(IPAddress.Any, port);
         _listener.Start();
         _acceptLoopTask = Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
@@ -36,12 +39,19 @@ public sealed class ModbusTcpServer : IAsyncDisposable
 
     public async Task StopAsync()
     {
+        lock (_clientSync)
+        {
+            _isStopping = true;
+        }
+
         _cts?.Cancel();
         _listener?.Stop();
         lock (_clientSync)
         {
-            _activeClient?.Close();
-            _activeClient = null;
+            foreach (var client in _clients)
+            {
+                client.Close();
+            }
         }
 
         if (_acceptLoopTask is not null)
@@ -53,6 +63,22 @@ public sealed class ModbusTcpServer : IAsyncDisposable
             catch (OperationCanceledException)
             {
             }
+        }
+
+        Task[] clientTasks;
+        lock (_clientSync)
+        {
+            clientTasks = _clientTasks.ToArray();
+            _clients.Clear();
+            _clientTasks.Clear();
+        }
+
+        try
+        {
+            await Task.WhenAll(clientTasks);
+        }
+        catch (OperationCanceledException)
+        {
         }
 
         _listener = null;
@@ -71,19 +97,34 @@ public sealed class ModbusTcpServer : IAsyncDisposable
                 client = await _listener.AcceptTcpClientAsync(cancellationToken);
                 lock (_clientSync)
                 {
-                    if (_activeClient is not null)
+                    if (_isStopping)
                     {
-                        _log($"Rejected extra client {client.Client.RemoteEndPoint}");
                         client.Close();
                         client = null;
                         continue;
                     }
 
-                    _activeClient = client;
+                    _clients.Add(client);
                 }
 
                 _log($"Client connected: {client.Client.RemoteEndPoint}");
-                _ = Task.Run(() => HandleClientAsync(client, cancellationToken), cancellationToken);
+                var clientTask = HandleClientAsync(client, cancellationToken);
+                lock (_clientSync)
+                {
+                    _clientTasks.Add(clientTask);
+                }
+
+                _ = clientTask.ContinueWith(
+                    _ =>
+                    {
+                        lock (_clientSync)
+                        {
+                            _clientTasks.Remove(clientTask);
+                        }
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
             catch (OperationCanceledException)
             {
@@ -158,10 +199,7 @@ public sealed class ModbusTcpServer : IAsyncDisposable
         {
             lock (_clientSync)
             {
-                if (ReferenceEquals(_activeClient, client))
-                {
-                    _activeClient = null;
-                }
+                _clients.Remove(client);
             }
 
             _log($"Client disconnected: {remoteEndPoint}");

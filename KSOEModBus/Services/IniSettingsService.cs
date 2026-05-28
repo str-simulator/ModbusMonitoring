@@ -6,6 +6,7 @@ namespace KSOEModBus.Services;
 
 public sealed class IniSettingsService
 {
+    private const string UdpSectionName = "InstructorConsoleUDP";
     private readonly string _iniPath;
 
     public IniSettingsService(string iniPath)
@@ -72,7 +73,7 @@ public sealed class IniSettingsService
                         settings.AutoLoadExcel = autoLoad;
                     }
                     break;
-                case "Udp":
+                case UdpSectionName:
                     if (key.Equals("ReceivePort", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var recvPort))
                     {
                         settings.UdpReceivePort = recvPort;
@@ -103,7 +104,7 @@ AutoStart={{settings.AutoStart}}
 SheetName={{settings.ExcelSheetName}}
 AutoLoad={{settings.AutoLoadExcel}}
 
-[Udp]
+[InstructorConsoleUDP]
 ReceivePort={{settings.UdpReceivePort}}
 SendIp={{settings.UdpSendIp}}
 SendPort={{settings.UdpSendPort}}
