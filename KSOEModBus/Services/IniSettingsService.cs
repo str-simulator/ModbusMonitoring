@@ -6,7 +6,8 @@ namespace KSOEModBus.Services;
 
 public sealed class IniSettingsService
 {
-    private const string UdpSectionName = "InstructorConsoleUDP";
+    private const string UdpSectionName = "Udp";
+    private const string LegacyUdpSectionName = "InstructorConsoleUDP";
     private readonly string _iniPath;
 
     public IniSettingsService(string iniPath)
@@ -73,7 +74,7 @@ public sealed class IniSettingsService
                         settings.AutoLoadExcel = autoLoad;
                     }
                     break;
-                case UdpSectionName:
+                case var currentSection when IsUdpSection(currentSection):
                     if (key.Equals("ReceivePort", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var recvPort))
                     {
                         settings.UdpReceivePort = recvPort;
@@ -104,7 +105,7 @@ AutoStart={{settings.AutoStart}}
 SheetName={{settings.ExcelSheetName}}
 AutoLoad={{settings.AutoLoadExcel}}
 
-[InstructorConsoleUDP]
+[Udp]
 ReceivePort={{settings.UdpReceivePort}}
 SendIp={{settings.UdpSendIp}}
 SendPort={{settings.UdpSendPort}}
@@ -121,5 +122,12 @@ SendPort={{settings.UdpSendPort}}
     public string GetExcelPath()
     {
         return FindDefaultExcelPath();
+    }
+
+    private static bool IsUdpSection(string? section)
+    {
+        return section is not null &&
+               (section.Equals(UdpSectionName, StringComparison.OrdinalIgnoreCase) ||
+                section.Equals(LegacyUdpSectionName, StringComparison.OrdinalIgnoreCase));
     }
 }

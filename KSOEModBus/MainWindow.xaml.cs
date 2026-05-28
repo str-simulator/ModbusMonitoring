@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using KSOEModBus.Services;
 using KSOEModBus.ViewModels;
 
 namespace KSOEModBus;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
+        DiagnosticLog.Write("Main window closing");
         _viewModel.Logs.CollectionChanged -= OnLogsCollectionChanged;
         LogListBox.Loaded -= OnLogListBoxLoaded;
         LogListBox.LayoutUpdated -= OnLogListBoxLayoutUpdated;

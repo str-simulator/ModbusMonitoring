@@ -103,6 +103,7 @@ public sealed class MainViewModel : ObservableObject
         }
 
         _initialized = true;
+        AddLog($"INI loaded: ModbusPort={_settings.ModbusPort}, AutoStart={_settings.AutoStart}, ExcelSheetName={_settings.ExcelSheetName}, AutoLoadExcel={_settings.AutoLoadExcel}, UdpReceivePort={_settings.UdpReceivePort}, UdpSendIp={_settings.UdpSendIp}, UdpSendPort={_settings.UdpSendPort}");
         _excelTemplateWriter.EnsureTemplate(_settingsService.GetExcelPath());
         if (_settings.AutoLoadExcel)
         {
