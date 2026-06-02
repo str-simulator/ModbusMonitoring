@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using KSOEModBus.Models;
 
 namespace KSOEModBus.Services;
@@ -9,17 +11,24 @@ public sealed class UdpJsonBridge : IAsyncDisposable
 {
     private readonly ModbusDataStore _dataStore;
     private readonly Action<string> _log;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly Action _requestRefresh;
+    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        AllowTrailingCommas = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+    };
     private UdpClient? _receiver;
     private UdpClient? _sender;
     private CancellationTokenSource? _cts;
     private Task? _receiveLoopTask;
     private AppSettings? _settings;
 
-    public UdpJsonBridge(ModbusDataStore dataStore, Action<string> log)
+    public UdpJsonBridge(ModbusDataStore dataStore, Action<string> log, Action requestRefresh)
     {
         _dataStore = dataStore;
         _log = log;
+        _requestRefresh = requestRefresh;
     }
 
     public Task StartAsync(AppSettings settings, CancellationToken cancellationToken = default)
@@ -83,10 +92,13 @@ public sealed class UdpJsonBridge : IAsyncDisposable
     {
         while (!cancellationToken.IsCancellationRequested && _receiver is not null)
         {
+            string? json = null;
+            string? remoteEndPoint = null;
             try
             {
                 var result = await _receiver.ReceiveAsync(cancellationToken);
-                var json = Encoding.UTF8.GetString(result.Buffer);
+                remoteEndPoint = $"{result.RemoteEndPoint.Address}:{result.RemoteEndPoint.Port}";
+                json = Encoding.UTF8.GetString(result.Buffer);
                 var message = JsonSerializer.Deserialize<UdpSnapshotMessage>(json, _jsonOptions);
                 if (message?.Values is null)
                 {
@@ -102,7 +114,28 @@ public sealed class UdpJsonBridge : IAsyncDisposable
                     }
                 }
 
-                _log($"UDP RX {message.MessageType} from {result.RemoteEndPoint.Address}:{result.RemoteEndPoint.Port} ({changedCount} items)");
+                if (changedCount > 0)
+                {
+                    _requestRefresh();
+                }
+
+                _log($"UDP RX {message.MessageType} from {remoteEndPoint} ({changedCount} items)");
+            }
+            catch (JsonException ex)
+            {
+                var location = CreateJsonErrorLocation(ex);
+                var summary = $"UDP RX JSON error from {remoteEndPoint ?? "<unknown>"} at {location}: {ex.Message}";
+                _log(summary);
+                Debug.WriteLine(summary);
+                DiagnosticLog.WriteException(summary, ex);
+
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    var payload = $"UDP RX payload: {TruncateForLog(json, 500)}";
+                    _log(payload);
+                    Debug.WriteLine(payload);
+                    DiagnosticLog.Write(payload);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -111,6 +144,7 @@ public sealed class UdpJsonBridge : IAsyncDisposable
             catch (Exception ex)
             {
                 _log($"UDP RX error: {ex.Message}");
+                Debug.WriteLine($"UDP RX error: {ex}");
             }
         }
     }
@@ -118,5 +152,27 @@ public sealed class UdpJsonBridge : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+    }
+
+    private static string TruncateForLog(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        return $"{value[..maxLength]}...";
+    }
+
+    private static string CreateJsonErrorLocation(JsonException ex)
+    {
+        var path = ex.Path ?? "<root>";
+        var line = ex.LineNumber is not null && ex.LineNumber >= 0
+            ? $"line {ex.LineNumber}"
+            : "line <unknown>";
+        var position = ex.BytePositionInLine >= 0
+            ? $"byte {ex.BytePositionInLine}"
+            : "byte <unknown>";
+        return $"path '{path}', {line}, {position}";
     }
 }

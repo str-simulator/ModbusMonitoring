@@ -98,6 +98,8 @@ public sealed class ModbusDataStore
 
     public bool TryWriteRegisters(ushort startAddress, IReadOnlyList<ushort> values, out byte exceptionCode)
     {
+        List<MappingItem>? changed = null;
+
         lock (_syncRoot)
         {
             exceptionCode = 0;
@@ -118,7 +120,7 @@ public sealed class ModbusDataStore
                 _registers[startAddress + index] = values[index];
             }
 
-            var changed = new List<MappingItem>();
+            changed = new List<MappingItem>();
             foreach (var item in _items.Where(item => item.Definition.Direction == DataDirection.KsoeToStr))
             {
                 if (!RangesOverlap(item.Address, 2, startAddress, values.Count))
@@ -130,13 +132,18 @@ public sealed class ModbusDataStore
                 changed.Add(item);
             }
 
-            if (changed.Count > 0)
+            if (changed.Count == 0)
             {
-                KsoeDataWritten?.Invoke(changed);
+                changed = null;
             }
-
-            return true;
         }
+
+        if (changed is not null)
+        {
+            KsoeDataWritten?.Invoke(changed);
+        }
+
+        return true;
     }
 
     private bool ValidateWritableRange(int startAddress, int count)

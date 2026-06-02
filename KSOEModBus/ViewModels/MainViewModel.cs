@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using KSOEModBus.Infrastructure;
 using KSOEModBus.Models;
@@ -16,6 +17,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly ModbusTcpServer _modbusServer;
     private readonly UdpJsonBridge _udpBridge;
     private readonly AppSettings _settings;
+    private int _ksoeSyncPending;
+    private int _refreshPending;
     private bool _initialized;
     private bool _isRunning;
     private int _modbusPort;
@@ -31,7 +34,7 @@ public sealed class MainViewModel : ObservableObject
         _excelTemplateWriter = new ExcelTemplateWriter();
         _dataStore = new ModbusDataStore();
         _modbusServer = new ModbusTcpServer(_dataStore, AddLog);
-        _udpBridge = new UdpJsonBridge(_dataStore, AddLog);
+        _udpBridge = new UdpJsonBridge(_dataStore, AddLog, RequestRefresh);
         _settings = _settingsService.Load();
         _modbusPort = _settings.ModbusPort;
 
@@ -41,11 +44,7 @@ public sealed class MainViewModel : ObservableObject
         ClearLogCommand = new RelayCommand(ClearLogs);
         KsoeReadTestCommand = new RelayCommand(ApplyKsoeReadTestData);
 
-        _dataStore.KsoeDataWritten += async _ =>
-        {
-            await _udpBridge.SendSnapshotAsync(DataDirection.KsoeToStr);
-            await Application.Current.Dispatcher.InvokeAsync(RefreshCollections);
-        };
+        _dataStore.KsoeDataWritten += _changedItems => ScheduleKsoeDataSync();
     }
 
     public ObservableCollection<MappingItem> KsoeToStrItems { get; } = [];
@@ -196,6 +195,55 @@ public sealed class MainViewModel : ObservableObject
         RebuildCollection(StrToKsoeItems, _dataStore.GetItems(DataDirection.StrToKsoe));
     }
 
+    private void ScheduleKsoeDataSync()
+    {
+        if (Interlocked.Exchange(ref _ksoeSyncPending, 1) == 1)
+        {
+            return;
+        }
+
+        _ = HandleKsoeDataWrittenAsync();
+    }
+
+    private async Task HandleKsoeDataWrittenAsync()
+    {
+        try
+        {
+            // Batch rapid Modbus writes into a single UDP/UI update.
+            await Task.Delay(100);
+            await _udpBridge.SendSnapshotAsync(DataDirection.KsoeToStr);
+            RequestRefresh();
+        }
+        catch (Exception ex)
+        {
+            AddLog($"KSOE data sync failed: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _ksoeSyncPending, 0);
+        }
+    }
+
+    private void RequestRefresh()
+    {
+        if (Interlocked.Exchange(ref _refreshPending, 1) == 1)
+        {
+            return;
+        }
+
+        _ = Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                RefreshCollections();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshPending, 0);
+            }
+        });
+    }
+
     private static void RebuildCollection(ObservableCollection<MappingItem> target, IReadOnlyList<MappingItem> items)
     {
         target.Clear();
@@ -207,7 +255,17 @@ public sealed class MainViewModel : ObservableObject
 
     private void AddLog(string message)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        if (Application.Current.Dispatcher.CheckAccess())
+        {
+            Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+            while (Logs.Count > 300)
+            {
+                Logs.RemoveAt(0);
+            }
+            return;
+        }
+
+        _ = Application.Current.Dispatcher.BeginInvoke(() =>
         {
             Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
             while (Logs.Count > 300)

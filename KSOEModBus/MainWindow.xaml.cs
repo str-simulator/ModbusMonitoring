@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel = new();
     private ScrollViewer? _logScrollViewer;
     private bool _isLogAutoScrollEnabled = true;
+    private int _logAutoScrollRequestId;
 
     public MainWindow()
     {
@@ -73,13 +74,28 @@ public partial class MainWindow : Window
 
         if (_isLogAutoScrollEnabled)
         {
-            Dispatcher.BeginInvoke((Action)ScrollLogToEnd);
+            var requestId = ++_logAutoScrollRequestId;
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!_isLogAutoScrollEnabled || requestId != _logAutoScrollRequestId)
+                {
+                    return;
+                }
+
+                ScrollLogToEnd();
+            });
         }
     }
 
     private void OnLogScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (_logScrollViewer is null)
+        {
+            return;
+        }
+
+        // Ignore extent-only changes caused by new log entries or trimming old ones.
+        if (Math.Abs(e.VerticalChange) < double.Epsilon && Math.Abs(e.ExtentHeightChange) > double.Epsilon)
         {
             return;
         }
@@ -95,7 +111,6 @@ public partial class MainWindow : Window
         }
 
         _logScrollViewer.ScrollToEnd();
-        _isLogAutoScrollEnabled = true;
     }
 
     private static bool IsScrollAtBottom(ScrollViewer scrollViewer)
