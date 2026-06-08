@@ -102,7 +102,29 @@ public static class MappingCatalog
             CreateKsoe(288, "운항환경 원격제어", "Current Height", "current_height", "조위 높이"),
             CreateKsoe(290, "운항환경 원격제어", "Wave Direction Cmd", "wave_direction_cmd", "파도 방향 설정"),
             CreateKsoe(292, "운항환경 원격제어", "Wave Height Cmd", "wave_height_cmd", "파고 설정"),
+            ..CreateTshipMappings(300, 10),
         ];
+    }
+
+    private static IEnumerable<MappingDefinition> CreateTshipMappings(int startAddress, int shipCount)
+    {
+        const int fieldsPerShip = 7;
+        const int addressStride = fieldsPerShip * 2;
+
+        for (var shipIndex = 1; shipIndex <= shipCount; shipIndex++)
+        {
+            var baseAddress = startAddress + ((shipIndex - 1) * addressStride);
+            var shipKey = $"tship{shipIndex:00}";
+            var shipLabel = $"TShip {shipIndex}";
+
+            yield return CreateKsoe(baseAddress + 0, shipLabel, "Tship Index", $"{shipKey}_idx", "Tship index");
+            yield return CreateKsoe(baseAddress + 2, shipLabel, "Tship Latitude Essence", $"{shipKey}_lat_essence", "Tship latitude essence");
+            yield return CreateKsoe(baseAddress + 4, shipLabel, "Tship Latitude Decimal", $"{shipKey}_lat_decimal", "Tship latitude decimal");
+            yield return CreateKsoe(baseAddress + 6, shipLabel, "Tship Longitude Essence", $"{shipKey}_lon_essence", "Tship longitude essence");
+            yield return CreateKsoe(baseAddress + 8, shipLabel, "Tship Longitude Decimal", $"{shipKey}_lon_decimal", "Tship longitude decimal");
+            yield return CreateKsoe(baseAddress + 10, shipLabel, "Tship Heading", $"{shipKey}_heading", "Tship heading");
+            yield return CreateKsoe(baseAddress + 12, shipLabel, "Tship Speed", $"{shipKey}_speed", "Tship speed");
+        }
     }
 
     private static MappingDefinition CreateStr(int address, string category, string equip, string signalKey, string description)
