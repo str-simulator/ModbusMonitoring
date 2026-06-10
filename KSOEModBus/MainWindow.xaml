@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="KSOE Modbus Bridge"
+        Icon="pack://application:,,,/Assets/modbus.ico"
         Width="1600"
         Height="900"
         MinWidth="1200"
@@ -68,15 +69,21 @@
                     <Button Width="140"
                             Height="40"
                             Margin="0,0,0,10"
+                            Background="#2E6F95"
+                            BorderBrush="#235776"
                             Command="{Binding KsoeReadTestCommand}"
                             Content="KSOE Read Test" />
                     <Button Width="140"
                             Height="40"
                             Margin="0,0,0,10"
+                            Background="#6C7F45"
+                            BorderBrush="#566638"
                             Command="{Binding ReloadExcelCommand}"
                             Content="Reload Excel" />
                     <Button Width="140"
                             Height="40"
+                            Background="#205A4A"
+                            BorderBrush="#164537"
                             Command="{Binding StartCommand}"
                             Content="Start Server" />
                 </StackPanel>
@@ -86,6 +93,8 @@
                         Height="40"
                         Margin="12,0,0,0"
                         VerticalAlignment="Center"
+                        Background="#9C3D2B"
+                        BorderBrush="#7C2F21"
                         Command="{Binding StopCommand}"
                         Content="Stop Server" />
             </Grid>
@@ -184,9 +193,11 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Button Width="120"
-                            Height="34"
+                            Height="38"
                             HorizontalAlignment="Right"
                             Margin="0,0,0,10"
+                            Background="#435866"
+                            BorderBrush="#34434D"
                             Command="{Binding ClearLogCommand}"
                             Content="Log Clear" />
                     <ListBox x:Name="LogListBox"

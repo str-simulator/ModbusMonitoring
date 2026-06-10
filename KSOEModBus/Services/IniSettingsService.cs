@@ -80,7 +80,7 @@ public sealed class IniSettingsService
                         settings.UdpReceivePort = recvPort;
                     }
                     else if (key.Equals("SendIp", StringComparison.OrdinalIgnoreCase))
-                    {
+                    { 
                         settings.UdpSendIp = value;
                     }
                     else if (key.Equals("SendPort", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var sendPort))
